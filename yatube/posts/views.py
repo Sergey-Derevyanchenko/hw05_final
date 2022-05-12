@@ -38,9 +38,10 @@ def profile(request, username):
     author = get_object_or_404(User, username=username)
     posts = author.posts.select_related('author')
     page_obj = pagination(posts, request)
-    following = (request.user.is_authenticated
-                 and Follow.objects.filter(author=author,
-                                           user=request.user).exists())
+    following = (
+        request.user.is_authenticated
+        and Follow.objects.filter(author=author, user=request.user).exists()
+    )
     context = {
         'author': author,
         'page_obj': page_obj,
@@ -53,7 +54,7 @@ def post_detail(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST or None)
     comment = Comment.objects.filter(post_id=post.id)
-    posts_count = Post.objects.filter(author=post.author).count()
+    posts_count = Post.objects.select_related('author')
     context = {
         'post': post,
         'posts_count': posts_count,
@@ -113,7 +114,8 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    posts = Post.objects.filter(author__following__user=request.user)
+    posts = Post.objects.filter(
+        author__following__user=request.user).select_related('author')
     page_obj = pagination(posts, request)
     content = {
         'page_obj': page_obj,
@@ -126,16 +128,16 @@ def profile_follow(request, username):
     author = get_object_or_404(User, username=username)
     if author != request.user:
         Follow.objects.get_or_create(
-            user=request.user, author=author
+            user=request.user,
+            author=author
         )
     return redirect('posts:profile', username=author.username)
 
 
 @login_required
 def profile_unfollow(request, username):
-    author = get_object_or_404(User, username=username)
-    Follow.objects.filter(
-        user=request.user,
-        author=author
-    ).delete()
-    return redirect('posts:profile', username=author.username)
+    follower = Follow.objects.filter(
+        user=request.user, author__username=username)
+    if follower.exists():
+        follower.delete()
+    return redirect('posts:profile', username=username)
